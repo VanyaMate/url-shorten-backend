@@ -30,28 +30,44 @@ export class PgUrlAnalytics implements IUrlAnalytics {
     }
 
     async getByAlias (alias: string): Promise<DomainUrlAnalytics> {
-        const result = await this._postgreQueryBuilder.query<DomainUrlAnalytics>(`
+        const result = await this._postgreQueryBuilder.query<{
+            count: number,
+            last_redirects: Array<{
+                id: string,
+                alias_id: string,
+                ip: string,
+                created_at: number
+            }>
+        }>(`
             SELECT 
                 a.count,
                 COALESCE(
                     jsonb_agg(
-                        jsonb_build_object('id', r.id, 'ip', r.ip, 'createdAt', r.createdAt)
-                        ORDER BY r.createdAt DESC
+                        jsonb_build_object('id', r.id, 'ip', r.ip, 'createdAt', r.created_at)
+                        ORDER BY r.created_at DESC
                     ) FILTER (WHERE r.id IS NOT NULL), '[]'::jsonb
                 ) AS last_redirects
             FROM ${URL_ANALYTICS_TABLE} a
             LEFT JOIN (
                 SELECT * FROM ${URL_REDIRECT_TABLE}
-                WHERE aliasId = $1
-                ORDER BY createdAt DESC
+                WHERE alias_id = $1
+                ORDER BY created_at DESC
                 LIMIT 5
-            ) r ON a.aliasId = r.aliasId
-            WHERE a.aliasId = $1
-            GROUP BY a.aliasId, a.count;
+            ) r ON a.alias_id = r.alias_id
+            WHERE a.alias_id = $1
+            GROUP BY a.alias_id, a.count;
         `, [ alias ]);
 
-        if (result[0]) {
-            return result[0];
+        const resultItem = result[0];
+
+        if (resultItem) {
+            return {
+                count        : resultItem.count,
+                lastRedirects: resultItem.last_redirects.map((redirect) => ({
+                    ip          : redirect.ip,
+                    redirectTime: redirect.created_at,
+                })),
+            };
         }
 
         throw new Error(`Аналитика по URL отсутствует`);

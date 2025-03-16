@@ -14,10 +14,10 @@ export class PgUrlRedirect implements IUrlRedirect {
         await this._postgreQueryBuilder.query(`
             CREATE TABLE IF NOT EXISTS ${URL_REDIRECT_TABLE} (
                 id SERIAL PRIMARY KEY,
-                aliasId TEXT NOT NULL,
+                alias_id TEXT NOT NULL,
                 ip TEXT NOT NULL,
-                createdAt BIGINT DEFAULT (EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000)::BIGINT,
-                CONSTRAINT fk_url FOREIGN KEY (aliasId) REFERENCES ${URL_SHORTEN_TABLE}(id) ON DELETE CASCADE
+                created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000)::BIGINT,
+                CONSTRAINT fk_url FOREIGN KEY (alias_id) REFERENCES ${URL_SHORTEN_TABLE}(id) ON DELETE CASCADE
             )
         `);
     }
@@ -25,11 +25,11 @@ export class PgUrlRedirect implements IUrlRedirect {
     async create (alias: string, ip: string): Promise<DomainRedirect> {
         const result = await this._postgreQueryBuilder.query<{
             id: number,
-            aliasId: string,
+            alias_id: string,
             ip: string,
-            createdAt: number
+            created_at: number
         }>(`
-            INSERT INTO ${URL_REDIRECT_TABLE} (aliasId, ip) 
+            INSERT INTO ${URL_REDIRECT_TABLE} (alias_id, ip) 
             VALUES ($1, $2) 
             RETURNING *
         `, [ alias, ip ]);
@@ -39,7 +39,7 @@ export class PgUrlRedirect implements IUrlRedirect {
         return {
             id          : createdRedirect.id.toString(),
             ip          : createdRedirect.ip,
-            redirectTime: createdRedirect.createdAt,
+            redirectTime: createdRedirect.created_at,
         };
     }
 

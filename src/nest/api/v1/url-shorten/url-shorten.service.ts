@@ -7,13 +7,18 @@ import {
     PgUrlShorten,
 } from '../../../../domain/UrlShorten/implementations/PgUrlShorten';
 import { DomainUrlCreateData, DomainUrl } from '@vanyamate/url-shorten';
+import { getAliasFromUrl } from '../../../../domain/utils/getAliasFromUrl';
+import { UrlAnalyticsService } from './url-analytics.service';
 
 
 @Injectable()
 export class UrlShortenService implements IUrlShorten {
     private readonly _service: IUrlShorten;
 
-    constructor (private readonly _pgBuilder: PgService) {
+    constructor (
+        private readonly _pgBuilder: PgService,
+        private readonly _analyticsService: UrlAnalyticsService,
+    ) {
         this._service = new PgUrlShorten(this._pgBuilder);
     }
 
@@ -22,22 +27,36 @@ export class UrlShortenService implements IUrlShorten {
     }
 
     async create (createData: DomainUrlCreateData): Promise<DomainUrl> {
-        return this._service.create(createData);
+        const domainUrl = await this._service.create(createData);
+        this._analyticsService.create(domainUrl.id);
+        return domainUrl;
     }
 
     async getAll (): Promise<Array<DomainUrl>> {
         return this._service.getAll();
     }
 
-    async getByAlias (alias: string): Promise<DomainUrl> {
-        return this._service.getByAlias(alias);
+    async getByAlias (url: string): Promise<DomainUrl> {
+        try {
+            return await this._service.getByAlias(getAliasFromUrl(url));
+        } catch (error: unknown) {
+            throw new Error(`Ошибка получения информации о ссылке. ${ JSON.stringify(error) }`);
+        }
     }
 
-    async getOriginalUrlByAlias (alias: string): Promise<string> {
-        return this._service.getOriginalUrlByAlias(alias);
+    async getOriginalUrlByAlias (url: string): Promise<string> {
+        try {
+            return await this._service.getOriginalUrlByAlias(getAliasFromUrl(url));
+        } catch (error: unknown) {
+            throw new Error(`Ошибка получения оригинальной ссылки. ${ JSON.stringify(error) }`);
+        }
     }
 
-    async removeByAlias (alias: string): Promise<boolean> {
-        return this._service.removeByAlias(alias);
+    async removeByAlias (url: string): Promise<boolean> {
+        try {
+            return await this._service.removeByAlias(getAliasFromUrl(url));
+        } catch (error: unknown) {
+            throw new Error(`Ошибка удаления ссылки. ${ JSON.stringify(error) }`);
+        }
     }
 }

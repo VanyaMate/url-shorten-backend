@@ -30,8 +30,8 @@ export class PgUrlShorten implements IUrlShorten {
 
     async create (createData: DomainUrlCreateData): Promise<DomainUrl> {
         const safeAlias     = createData.alias
-                              ? Math.random().toString(16).split('.')[1]
-                              : createData.alias;
+                              ? createData.alias
+                              : Math.random().toString(16).split('.')[1];
         const safeExpiresAt = createData.expiresAt ?? 0;
 
         const result = await this._postgreQueryBuilder.query<PgUrlResponse>(`
