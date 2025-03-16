@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+    BadRequestException,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
 import {
     IUrlShorten,
 } from '../../../../domain/UrlShorten/UrlShorten.interface';
@@ -6,7 +10,11 @@ import { PgService } from '../../../services/pg/pg.service';
 import {
     PgUrlShorten,
 } from '../../../../domain/UrlShorten/implementations/PgUrlShorten';
-import { DomainUrlCreateData, DomainUrl } from '@vanyamate/url-shorten';
+import {
+    DomainUrlCreateData,
+    DomainUrl,
+    DomainUrlInfo,
+} from '@vanyamate/url-shorten';
 import { getAliasFromUrl } from '../../../../domain/utils/getAliasFromUrl';
 import { UrlAnalyticsService } from './url-analytics.service';
 
@@ -27,36 +35,48 @@ export class UrlShortenService implements IUrlShorten {
     }
 
     async create (createData: DomainUrlCreateData): Promise<DomainUrl> {
-        const domainUrl = await this._service.create(createData);
-        this._analyticsService.create(domainUrl.id);
-        return domainUrl;
+        try {
+            const domainUrl = await this._service.create(createData);
+            this._analyticsService.create(domainUrl.id);
+            return domainUrl;
+        } catch (error: unknown) {
+            throw new BadRequestException(`Ошибка создания ссылки. ${ (error as Error).message }`);
+        }
     }
 
     async getAll (): Promise<Array<DomainUrl>> {
         return this._service.getAll();
     }
 
-    async getByAlias (url: string): Promise<DomainUrl> {
+    async getInfoByAlias (alias: string): Promise<DomainUrlInfo> {
         try {
-            return await this._service.getByAlias(getAliasFromUrl(url));
+            return await this._service.getInfoByAlias(alias);
         } catch (error: unknown) {
-            throw new Error(`Ошибка получения информации о ссылке. ${ JSON.stringify(error) }`);
+            throw new NotFoundException(`Ошибка получения информации о ссылке. ${ (error as Error).message }`);
         }
     }
 
-    async getOriginalUrlByAlias (url: string): Promise<string> {
+    async getByAlias (alias: string): Promise<DomainUrl> {
         try {
-            return await this._service.getOriginalUrlByAlias(getAliasFromUrl(url));
+            return await this._service.getByAlias(alias);
         } catch (error: unknown) {
-            throw new Error(`Ошибка получения оригинальной ссылки. ${ JSON.stringify(error) }`);
+            throw new NotFoundException(`Ошибка получения информации о ссылке. ${ (error as Error).message }`);
         }
     }
 
-    async removeByAlias (url: string): Promise<boolean> {
+    async getOriginalUrlByAlias (alias: string): Promise<string> {
         try {
-            return await this._service.removeByAlias(getAliasFromUrl(url));
+            return await this._service.getOriginalUrlByAlias(alias);
         } catch (error: unknown) {
-            throw new Error(`Ошибка удаления ссылки. ${ JSON.stringify(error) }`);
+            throw new NotFoundException(`Ошибка получения оригинальной ссылки. ${ (error as Error).message }`);
+        }
+    }
+
+    async removeByAlias (alias: string): Promise<boolean> {
+        try {
+            return await this._service.removeByAlias(alias);
+        } catch (error: unknown) {
+            throw new BadRequestException(`Ошибка удаления ссылки. ${ (error as Error).message }`);
         }
     }
 }

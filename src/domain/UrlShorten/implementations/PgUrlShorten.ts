@@ -2,8 +2,12 @@ import { IUrlShorten } from '../UrlShorten.interface';
 import {
     IPostgreSQLQueryBuilder,
 } from '../../PostgreSQL/PostgreSQLQueryBuilder/PostgreSQLQueryBuilder.interface';
-import { DomainUrlCreateData, DomainUrl } from '@vanyamate/url-shorten';
-import { URL_SHORTEN_TABLE } from '../../const/tableNames';
+import {
+    DomainUrlCreateData,
+    DomainUrl,
+    DomainUrlInfo,
+} from '@vanyamate/url-shorten';
+import { URL_ANALYTICS_TABLE, URL_SHORTEN_TABLE } from '../../const/tableNames';
 
 
 type PgUrlResponse = {
@@ -29,27 +33,35 @@ export class PgUrlShorten implements IUrlShorten {
     }
 
     async create (createData: DomainUrlCreateData): Promise<DomainUrl> {
-        const safeAlias     = createData.alias
-                              ? createData.alias
-                              : Math.random().toString(16).split('.')[1];
-        const safeExpiresAt = createData.expiresAt ?? 0;
+        if (createData.alias.length > 20) {
+            throw new Error('Максимальная длина алиаса 20 символов');
+        }
 
-        const result = await this._postgreQueryBuilder.query<PgUrlResponse>(`
-            INSERT INTO ${URL_SHORTEN_TABLE} (id, original_url, expires_at) 
-            VALUES ($1, $2, $3)
-            RETURNING *
-        `, [
-            safeAlias, createData.originalUrl, safeExpiresAt,
-        ]);
+        try {
+            const safeAlias     = createData.alias
+                                  ? createData.alias
+                                  : Math.random().toString(16).split('.')[1];
+            const safeExpiresAt = createData.expiresAt ?? 0;
 
-        const createdItem = result[0];
+            const result = await this._postgreQueryBuilder.query<PgUrlResponse>(`
+                INSERT INTO ${URL_SHORTEN_TABLE} (id, original_url, expires_at) 
+                VALUES ($1, $2, $3)
+                RETURNING *
+            `, [
+                safeAlias, createData.originalUrl, safeExpiresAt,
+            ]);
 
-        return {
-            id         : createdItem.id,
-            createdAt  : +createdItem.created_at,
-            expiresAt  : +createdItem.expires_at,
-            originalUrl: createdItem.original_url,
-        };
+            const createdItem = result[0];
+
+            return {
+                id         : createdItem.id,
+                createdAt  : +createdItem.created_at,
+                expiresAt  : +createdItem.expires_at,
+                originalUrl: createdItem.original_url,
+            };
+        } catch (e) {
+            throw new Error('Ссылка с таким алиасом уже существует');
+        }
     }
 
     async getAll (): Promise<Array<DomainUrl>> {
@@ -62,6 +74,36 @@ export class PgUrlShorten implements IUrlShorten {
                 expiresAt  : +url.expires_at,
                 originalUrl: url.original_url,
             })));
+    }
+
+    async getInfoByAlias (alias: string): Promise<DomainUrlInfo> {
+        const result = await this._postgreQueryBuilder.query<{
+            original_url: string,
+            created_at: number,
+            count: number
+        }>(`
+            SELECT 
+                a.original_url,
+                a.created_at,
+                COALESCE(r.count, 0) AS count
+            FROM ${URL_SHORTEN_TABLE} a
+            LEFT JOIN ${URL_ANALYTICS_TABLE} r 
+                ON a.id = r.alias_id
+            WHERE a.id = $1
+            GROUP BY a.original_url, a.created_at, r.count;
+        `, [ alias ]);
+
+        const createdItem = result[0];
+
+        if (createdItem) {
+            return {
+                createdAt  : +createdItem.created_at,
+                clickCount : +createdItem.count,
+                originalUrl: createdItem.original_url,
+            };
+        }
+
+        throw new Error(`URL не существует`);
     }
 
     async getByAlias (alias: string): Promise<DomainUrl> {
@@ -88,13 +130,15 @@ export class PgUrlShorten implements IUrlShorten {
             original_url: string,
             expires_at: number
         }>(`
-            SELECT (original_url, expires_at) 
+            SELECT id, original_url, expires_at
             FROM ${URL_SHORTEN_TABLE} 
             WHERE id = $1
         `, [ alias ]);
 
         if (result[0]) {
-            if (result[0].expires_at === 0 || result[0].expires_at > Date.now()) {
+            const expiresAt = Number(result[0].expires_at);
+
+            if (expiresAt === 0 || expiresAt > Date.now()) {
                 return result[0].original_url;
             }
 

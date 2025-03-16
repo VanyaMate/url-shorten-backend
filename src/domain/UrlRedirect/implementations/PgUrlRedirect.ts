@@ -1,5 +1,9 @@
 import { IUrlRedirect } from '../UrlRedirect.interface';
-import { URL_REDIRECT_TABLE, URL_SHORTEN_TABLE } from '../../const/tableNames';
+import {
+    URL_ANALYTICS_TABLE,
+    URL_REDIRECT_TABLE,
+    URL_SHORTEN_TABLE,
+} from '../../const/tableNames';
 import {
     IPostgreSQLQueryBuilder,
 } from '../../PostgreSQL/PostgreSQLQueryBuilder/PostgreSQLQueryBuilder.interface';
@@ -23,24 +27,34 @@ export class PgUrlRedirect implements IUrlRedirect {
     }
 
     async create (alias: string, ip: string): Promise<DomainRedirect> {
-        const result = await this._postgreQueryBuilder.query<{
-            id: number,
-            alias_id: string,
-            ip: string,
-            created_at: number
-        }>(`
-            INSERT INTO ${URL_REDIRECT_TABLE} (alias_id, ip) 
-            VALUES ($1, $2) 
-            RETURNING *
-        `, [ alias, ip ]);
+        try {
+            const result = await this._postgreQueryBuilder.query<{
+                id: number;
+                alias_id: string;
+                ip: string;
+                created_at: number;
+            }>(`
+                WITH updated_analytics AS (
+                    INSERT INTO ${URL_ANALYTICS_TABLE} (alias_id, count)
+                    VALUES ($1, 1)
+                    ON CONFLICT (alias_id) DO UPDATE 
+                    SET count = ${URL_ANALYTICS_TABLE}.count + 1
+                    RETURNING alias_id
+                )
+                INSERT INTO ${URL_REDIRECT_TABLE} (alias_id, ip) 
+                VALUES ($1, $2)
+                RETURNING id, alias_id, ip, created_at;
+            `, [ alias, ip ]);
 
-        const createdRedirect = result[0];
+            const createdRedirect = result[0];
 
-        return {
-            id          : createdRedirect.id.toString(),
-            ip          : createdRedirect.ip,
-            redirectTime: createdRedirect.created_at,
-        };
+            return {
+                ip          : createdRedirect.ip,
+                redirectTime: createdRedirect.created_at,
+            };
+        } catch (e: unknown) {
+            throw new Error(`Не правильная ссылка.`);
+        }
     }
 
     async removeAllByAlias (alias: string): Promise<boolean> {

@@ -7,7 +7,6 @@ import { PgService } from '../../../services/pg/pg.service';
 import {
     PgUrlAnalytics,
 } from '../../../../domain/UrlAnalytics/implementations/PgUrlAnalytics';
-import { getAliasFromUrl } from '../../../../domain/utils/getAliasFromUrl';
 
 
 @Injectable()
@@ -26,11 +25,11 @@ export class UrlAnalyticsService implements IUrlAnalytics {
         return this._service.create(alias);
     }
 
-    async getByAlias (url: string): Promise<DomainUrlAnalytics> {
+    async getByAlias (alias: string): Promise<DomainUrlAnalytics> {
         try {
-            return await this._service.getByAlias(getAliasFromUrl(url));
+            return await this._service.getByAlias(alias);
         } catch (error: unknown) {
-            throw new Error(`Ошибка получения аналитики по ссылке. ${ JSON.stringify(error) }`);
+            throw new Error(`Ошибка получения аналитики по ссылке. ${ (error as Error).message }`);
         }
     }
 

@@ -16,16 +16,16 @@ export class PgUrlAnalytics implements IUrlAnalytics {
         await this._postgreQueryBuilder.query(`
             CREATE TABLE IF NOT EXISTS ${URL_ANALYTICS_TABLE} (
                 id SERIAL PRIMARY KEY,
-                aliasId TEXT NOT NULL,
+                alias_id TEXT NOT NULL UNIQUE,
                 count INT DEFAULT 0,
-                CONSTRAINT fk_url FOREIGN KEY (aliasId) REFERENCES ${URL_SHORTEN_TABLE}(id) ON DELETE CASCADE
+                CONSTRAINT fk_url FOREIGN KEY (alias_id) REFERENCES ${URL_SHORTEN_TABLE}(id) ON DELETE CASCADE
             )
         `);
     }
 
     async create (alias: string): Promise<void> {
         await this._postgreQueryBuilder.query(`
-            INSERT INTO ${URL_ANALYTICS_TABLE} (aliasId) VALUES ($1)
+            INSERT INTO ${URL_ANALYTICS_TABLE} (alias_id) VALUES ($1)
         `, [ alias ]);
     }
 
@@ -34,9 +34,8 @@ export class PgUrlAnalytics implements IUrlAnalytics {
             count: number,
             last_redirects: Array<{
                 id: string,
-                alias_id: string,
                 ip: string,
-                created_at: number
+                createdAt: number
             }>
         }>(`
             SELECT 
@@ -65,7 +64,7 @@ export class PgUrlAnalytics implements IUrlAnalytics {
                 count        : resultItem.count,
                 lastRedirects: resultItem.last_redirects.map((redirect) => ({
                     ip          : redirect.ip,
-                    redirectTime: redirect.created_at,
+                    redirectTime: redirect.createdAt,
                 })),
             };
         }
@@ -75,7 +74,7 @@ export class PgUrlAnalytics implements IUrlAnalytics {
 
     async removeByAlias (alias: string): Promise<boolean> {
         const result = await this._postgreQueryBuilder.query(`
-            DELETE FROM ${URL_ANALYTICS_TABLE} WHERE aliasId = $1
+            DELETE FROM ${URL_ANALYTICS_TABLE} WHERE alias_id = $1
         `, [ alias ]);
 
         return !!result.length;

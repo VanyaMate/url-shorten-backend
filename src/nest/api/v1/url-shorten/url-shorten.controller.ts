@@ -1,11 +1,14 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Req } from '@nestjs/common';
 import { UrlShortenService } from './url-shorten.service';
 import { DomainUrlCreateData } from '@vanyamate/url-shorten';
 import { UrlAnalyticsService } from './url-analytics.service';
 import { Request } from 'express';
+import { getAliasFromUrl } from '../../../../domain/utils/getAliasFromUrl';
 
 
-@Controller('/api/v1/url-shorten')
+const apiUrl = '/api/v1/url-shorten/';
+
+@Controller(apiUrl)
 export class UrlShortenController {
     constructor (
         private readonly _shortenService: UrlShortenService,
@@ -18,13 +21,18 @@ export class UrlShortenController {
         return this._shortenService.getAll();
     }
 
-    @Get('/info/*')
+    @Get('info/*')
+    getInfo (
+        @Req() req: Request,
+    ) {
+        return this._shortenService.getInfoByAlias(getAliasFromUrl(req.url.split('/info/')[1]));
+    }
+
+    @Get('analytics/*')
     getAnalytics (
         @Req() req: Request,
     ) {
-        console.log(req.url);
-        console.log(req.url.split('/info/')[1]);
-        return this._analyticsService.getByAlias(req.url.split('/info/')[1]);
+        return this._analyticsService.getByAlias(getAliasFromUrl(req.url.split('/analytics/')[1]));
     }
 
     @Post()
@@ -32,5 +40,12 @@ export class UrlShortenController {
         @Body() createData: DomainUrlCreateData,
     ) {
         return this._shortenService.create(createData);
+    }
+
+    @Delete('*')
+    removeByAlias (
+        @Req() req: Request,
+    ) {
+        return this._shortenService.removeByAlias(getAliasFromUrl(req.url.split(apiUrl)[1]));
     }
 }

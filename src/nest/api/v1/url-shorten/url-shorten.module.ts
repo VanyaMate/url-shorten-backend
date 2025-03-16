@@ -14,6 +14,11 @@ import { UrlRedirectService } from './url-redirect.service';
         UrlRedirectService,
     ],
     controllers: [ UrlShortenController ],
+    exports    : [
+        UrlShortenService,
+        UrlAnalyticsService,
+        UrlRedirectService,
+    ],
 })
 export class UrlShortenModule implements OnModuleInit {
     constructor (
